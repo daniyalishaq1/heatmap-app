@@ -56,10 +56,13 @@ export default function Home() {
   const [files, setFiles] = useState<FileWithSheets[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>('');
   const [selectedSheet, setSelectedSheet] = useState<string>('');
-  const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
-  const [costData, setCostData] = useState<HeatmapData[]>([]);
-  const [conversionCostData, setConversionCostData] = useState<HeatmapData[]>([]);
-  const [costConversionData, setCostConversionData] = useState<HeatmapData[]>([]);
+  // Consolidated state for all heatmap data
+  const [allHeatmapData, setAllHeatmapData] = useState<CachedSheetData>({
+    conversions: [],
+    cost: [],
+    conversionCost: [],
+    costConversion: []
+  });
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>('');
@@ -181,15 +184,9 @@ export default function Home() {
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Use requestAnimationFrame to batch updates and avoid blocking
-      pendingFrameRef.current = requestAnimationFrame(() => {
-        setHeatmapData(cachedData.conversions);
-        setCostData(cachedData.cost);
-        setConversionCostData(cachedData.conversionCost);
-        setCostConversionData(cachedData.costConversion);
-        setSkipNextLoad(true);
-        pendingFrameRef.current = null;
-      });
+      // Single state update - much faster!
+      setAllHeatmapData(cachedData);
+      setSkipNextLoad(true);
       console.log(`Loaded from cache (file switch): ${cacheKey}`);
     }
   };
@@ -208,15 +205,9 @@ export default function Home() {
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Use requestAnimationFrame to batch updates and avoid blocking
-      pendingFrameRef.current = requestAnimationFrame(() => {
-        setHeatmapData(cachedData.conversions);
-        setCostData(cachedData.cost);
-        setConversionCostData(cachedData.conversionCost);
-        setCostConversionData(cachedData.costConversion);
-        setSkipNextLoad(true);
-        pendingFrameRef.current = null;
-      });
+      // Single state update - much faster!
+      setAllHeatmapData(cachedData);
+      setSkipNextLoad(true);
       console.log(`Loaded from cache (sheet switch): ${cacheKey}`);
     }
   };
@@ -382,20 +373,14 @@ export default function Home() {
 
     if (cachedData) {
       // Load from cache - instant!
-      setHeatmapData(cachedData.conversions);
-      setCostData(cachedData.cost);
-      setConversionCostData(cachedData.conversionCost);
-      setCostConversionData(cachedData.costConversion);
+      setAllHeatmapData(cachedData);
       console.log(`Loaded from cache: ${cacheKey}`);
     } else {
       // Fallback to fetch if not in cache
       console.log(`Cache miss: ${cacheKey}, fetching...`);
       const data = await fetchAndTransformData(filename, sheetName);
       if (data) {
-        setHeatmapData(data.conversions);
-        setCostData(data.cost);
-        setConversionCostData(data.conversionCost);
-        setCostConversionData(data.costConversion);
+        setAllHeatmapData(data);
 
         // Add to cache
         dataCacheRef.current.set(cacheKey, data);
@@ -533,33 +518,33 @@ export default function Home() {
           {/* Render based on selected view */}
           <Card className="flex-1">
             <CardContent className="p-4">
-              {heatmapData.length > 0 ? (
+              {allHeatmapData.conversions.length > 0 ? (
                 selectedView === 'all' ? (
                   <div className="grid grid-cols-2 gap-4 h-full">
                     <div className="border-r border-b p-4">
                       <h3 className="text-sm font-semibold mb-2">Conversion Heatmap</h3>
-                      <Heatmap data={heatmapData} metricType="conversions" hideZeroList={true} />
+                      <Heatmap data={allHeatmapData.conversions} metricType="conversions" hideZeroList={true} />
                     </div>
                     <div className="border-b p-4">
                       <h3 className="text-sm font-semibold mb-2">Cost Heatmap</h3>
-                      <Heatmap data={costData} metricType="cost" hideZeroList={true} />
+                      <Heatmap data={allHeatmapData.cost} metricType="cost" hideZeroList={true} />
                     </div>
                     <div className="border-r p-4">
                       <h3 className="text-sm font-semibold mb-2">Conversion/Cost Heatmap</h3>
-                      <Heatmap data={conversionCostData} metricType="conversion-cost" hideZeroList={true} />
+                      <Heatmap data={allHeatmapData.conversionCost} metricType="conversion-cost" hideZeroList={true} />
                     </div>
                     <div className="p-4">
                       <h3 className="text-sm font-semibold mb-2">Performance Heatmap</h3>
-                      <Heatmap data={costConversionData} metricType="cost-conversion" hideZeroList={true} />
+                      <Heatmap data={allHeatmapData.costConversion} metricType="cost-conversion" hideZeroList={true} />
                     </div>
                   </div>
                 ) : (
                   <Heatmap
                     data={
-                      selectedView === 'conversions' ? heatmapData :
-                      selectedView === 'cost' ? costData :
-                      selectedView === 'conversion-cost' ? conversionCostData :
-                      costConversionData
+                      selectedView === 'conversions' ? allHeatmapData.conversions :
+                      selectedView === 'cost' ? allHeatmapData.cost :
+                      selectedView === 'conversion-cost' ? allHeatmapData.conversionCost :
+                      allHeatmapData.costConversion
                     }
                     metricType={selectedView}
                   />
