@@ -45,6 +45,13 @@ interface FileWithSheets {
 
 type HeatmapView = 'conversions' | 'cost' | 'conversion-cost' | 'cost-conversion' | 'all';
 
+interface CachedSheetData {
+  conversions: HeatmapData[];
+  cost: HeatmapData[];
+  conversionCost: HeatmapData[];
+  costConversion: HeatmapData[];
+}
+
 export default function Home() {
   const [files, setFiles] = useState<FileWithSheets[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>('');
@@ -57,6 +64,8 @@ export default function Home() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>('');
   const [selectedView, setSelectedView] = useState<HeatmapView>('conversions');
+  // Cache to store all loaded file data
+  const [dataCache, setDataCache] = useState<Map<string, CachedSheetData>>(new Map());
 
   // Fetch list of CSV files
   useEffect(() => {
@@ -70,6 +79,14 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, selectedSheet]);
+
+  // Preload all files into cache after fetching file list
+  useEffect(() => {
+    if (files.length > 0) {
+      preloadAllFiles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
 
   const fetchCSVFiles = async () => {
     try {
@@ -138,16 +155,42 @@ export default function Home() {
   };
 
   const handleFileSelect = (filename: string) => {
-    setSelectedFile(filename);
     const file = files.find(f => f.filename === filename);
-    if (file && file.sheets.length > 0) {
-      setSelectedSheet(file.sheets[0]);
-    } else {
-      setSelectedSheet('');
+    const sheetName = file && file.sheets.length > 0 ? file.sheets[0] : '';
+
+    // Load from cache immediately
+    const cacheKey = `${filename}::${sheetName}`;
+    const cachedData = dataCache.get(cacheKey);
+
+    if (cachedData) {
+      // Update data immediately from cache
+      setHeatmapData(cachedData.conversions);
+      setCostData(cachedData.cost);
+      setConversionCostData(cachedData.conversionCost);
+      setCostConversionData(cachedData.costConversion);
+      console.log(`Loaded from cache (file switch): ${cacheKey}`);
     }
+
+    // Then update state
+    setSelectedFile(filename);
+    setSelectedSheet(sheetName);
   };
 
   const handleSheetSelect = (sheet: string) => {
+    // Load from cache immediately
+    const cacheKey = `${selectedFile}::${sheet}`;
+    const cachedData = dataCache.get(cacheKey);
+
+    if (cachedData) {
+      // Update data immediately from cache
+      setHeatmapData(cachedData.conversions);
+      setCostData(cachedData.cost);
+      setConversionCostData(cachedData.conversionCost);
+      setCostConversionData(cachedData.costConversion);
+      console.log(`Loaded from cache (sheet switch): ${cacheKey}`);
+    }
+
+    // Then update state
     setSelectedSheet(sheet);
   };
 
@@ -164,6 +207,15 @@ export default function Home() {
 
       // Close dialog immediately
       setDeleteDialogOpen(false);
+
+      // Clear cache entries for deleted file
+      const newCache = new Map(dataCache);
+      for (const key of newCache.keys()) {
+        if (key.startsWith(`${fileToDelete}::`)) {
+          newCache.delete(key);
+        }
+      }
+      setDataCache(newCache);
 
       // If deleted file was selected, select first remaining file
       if (selectedFile === fileToDelete) {
@@ -199,7 +251,36 @@ export default function Home() {
     }
   };
 
-  const loadCSVData = async (filename: string, sheetName: string) => {
+  // Preload all files and sheets into cache
+  const preloadAllFiles = async () => {
+    const newCache = new Map<string, CachedSheetData>();
+
+    for (const file of files) {
+      if (file.sheets.length > 0) {
+        // File with sheets (Excel)
+        for (const sheet of file.sheets) {
+          const cacheKey = `${file.filename}::${sheet}`;
+          const data = await fetchAndTransformData(file.filename, sheet);
+          if (data) {
+            newCache.set(cacheKey, data);
+          }
+        }
+      } else {
+        // Plain CSV file
+        const cacheKey = `${file.filename}::`;
+        const data = await fetchAndTransformData(file.filename, '');
+        if (data) {
+          newCache.set(cacheKey, data);
+        }
+      }
+    }
+
+    setDataCache(newCache);
+    console.log(`Preloaded ${newCache.size} sheets into cache`);
+  };
+
+  // Fetch and transform CSV data
+  const fetchAndTransformData = async (filename: string, sheetName: string): Promise<CachedSheetData | null> => {
     try {
       const url = sheetName
         ? `/api/csv/${encodeURIComponent(filename)}?sheet=${encodeURIComponent(sheetName)}`
@@ -260,12 +341,43 @@ export default function Home() {
         };
       });
 
-      setHeatmapData(conversions);
-      setCostData(cost);
-      setConversionCostData(conversionCost);
-      setCostConversionData(costConversion);
+      return {
+        conversions,
+        cost,
+        conversionCost,
+        costConversion
+      };
     } catch (error) {
-      console.error('Error loading CSV data:', error);
+      console.error(`Error loading data for ${filename}::${sheetName}:`, error);
+      return null;
+    }
+  };
+
+  const loadCSVData = async (filename: string, sheetName: string) => {
+    // Check cache first
+    const cacheKey = `${filename}::${sheetName}`;
+    const cachedData = dataCache.get(cacheKey);
+
+    if (cachedData) {
+      // Load from cache - instant!
+      setHeatmapData(cachedData.conversions);
+      setCostData(cachedData.cost);
+      setConversionCostData(cachedData.conversionCost);
+      setCostConversionData(cachedData.costConversion);
+      console.log(`Loaded from cache: ${cacheKey}`);
+    } else {
+      // Fallback to fetch if not in cache
+      console.log(`Cache miss: ${cacheKey}, fetching...`);
+      const data = await fetchAndTransformData(filename, sheetName);
+      if (data) {
+        setHeatmapData(data.conversions);
+        setCostData(data.cost);
+        setConversionCostData(data.conversionCost);
+        setCostConversionData(data.costConversion);
+
+        // Add to cache
+        setDataCache(prev => new Map(prev).set(cacheKey, data));
+      }
     }
   };
 
@@ -315,15 +427,15 @@ export default function Home() {
                 <div key={file.filename}>
                   {/* File Item */}
                   <div
-                    className={`group flex items-center justify-between px-4 py-2 hover:bg-muted cursor-pointer ${
-                      selectedFile === file.filename ? 'bg-muted' : ''
+                    className={`group flex items-center justify-between px-4 py-2 hover:bg-muted cursor-pointer transition-colors ${
+                      selectedFile === file.filename ? 'bg-blue-100 border-l-4 border-blue-600 font-semibold' : ''
                     }`}
                   >
                     <div
                       className="flex items-center gap-2 flex-1 overflow-hidden"
                       onClick={() => handleFileSelect(file.filename)}
                     >
-                      <span className="text-sm truncate flex-1" title={file.filename}>
+                      <span className={`text-sm truncate flex-1 ${selectedFile === file.filename ? 'text-blue-900' : ''}`} title={file.filename}>
                         {file.filename}
                       </span>
                     </div>
