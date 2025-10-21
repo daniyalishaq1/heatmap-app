@@ -24,11 +24,23 @@ export async function GET(
     return new NextResponse(content, {
       headers: {
         'Content-Type': 'text/csv',
+        'Cache-Control': 'public, max-age=60', // Cache for 60 seconds
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error reading CSV file:', error);
-    return NextResponse.json({ error: 'File not found' }, { status: 404 });
+
+    // Return appropriate status based on error type
+    const isTimeout = error.code === 'XX000' || error.message?.includes('timeout');
+    const status = isTimeout ? 503 : 404; // 503 Service Unavailable for timeouts
+
+    return NextResponse.json(
+      {
+        error: isTimeout ? 'Database temporarily unavailable' : 'File not found',
+        message: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      },
+      { status }
+    );
   }
 }
 

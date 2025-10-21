@@ -2,11 +2,43 @@ import { createPool, VercelPool } from '@vercel/postgres';
 
 let pool: VercelPool | null = null;
 
-// Lazy initialization of the pool
+// Retry helper for transient database errors
+async function retryQuery<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  delay = 1000
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isLastRetry = i === maxRetries - 1;
+      const isRetryable =
+        error.code === 'XX000' ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('terminated') ||
+        error.message?.includes('Connection terminated');
+
+      if (isLastRetry || !isRetryable) {
+        throw error;
+      }
+
+      console.log(`Query failed, retrying (${i + 1}/${maxRetries})...`);
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+// Lazy initialization of the pool with proper configuration
 function getPool() {
   if (!pool) {
     pool = createPool({
       connectionString: process.env.POSTGRES_POSTGRES_URL!,
+      max: 20, // Maximum pool size (increase from default 10)
+      idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+      connectionTimeoutMillis: 10000, // Timeout when trying to get connection from pool
     });
   }
   return pool;
@@ -75,9 +107,12 @@ export async function getSheetsByFilename(filename: string) {
 }
 
 export async function getCSVFileByName(filename: string, sheetName?: string) {
-  try {
+  return retryQuery(async () => {
     const client = await getPool().connect();
     try {
+      // Set statement timeout to 5 seconds
+      await client.query('SET statement_timeout = 5000');
+
       const result = await client.query(
         'SELECT content FROM csv_files WHERE filename = $1 AND (sheet_name = $2 OR ($2 IS NULL AND sheet_name IS NULL)) LIMIT 1',
         [filename, sheetName || null]
@@ -86,10 +121,7 @@ export async function getCSVFileByName(filename: string, sheetName?: string) {
     } finally {
       client.release();
     }
-  } catch (error) {
-    console.error('Error fetching CSV file:', error);
-    return null;
-  }
+  });
 }
 
 export async function saveCSVFile(filename: string, content: string, sheetName?: string) {
