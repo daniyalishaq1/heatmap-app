@@ -11,13 +11,14 @@ async function retryQuery<T>(
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error) {
       const isLastRetry = i === maxRetries - 1;
+      const dbError = error as { code?: string; message?: string };
       const isRetryable =
-        error.code === 'XX000' ||
-        error.message?.includes('timeout') ||
-        error.message?.includes('terminated') ||
-        error.message?.includes('Connection terminated');
+        dbError.code === 'XX000' ||
+        dbError.message?.includes('timeout') ||
+        dbError.message?.includes('terminated') ||
+        dbError.message?.includes('Connection terminated');
 
       if (isLastRetry || !isRetryable) {
         throw error;

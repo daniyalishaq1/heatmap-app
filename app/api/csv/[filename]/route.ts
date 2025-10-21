@@ -27,17 +27,18 @@ export async function GET(
         'Cache-Control': 'public, max-age=60', // Cache for 60 seconds
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error reading CSV file:', error);
 
     // Return appropriate status based on error type
-    const isTimeout = error.code === 'XX000' || error.message?.includes('timeout');
+    const dbError = error as { code?: string; message?: string };
+    const isTimeout = dbError.code === 'XX000' || dbError.message?.includes('timeout');
     const status = isTimeout ? 503 : 404; // 503 Service Unavailable for timeouts
 
     return NextResponse.json(
       {
         error: isTimeout ? 'Database temporarily unavailable' : 'File not found',
-        message: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        message: process.env.NODE_ENV === 'development' ? dbError.message : undefined,
       },
       { status }
     );
