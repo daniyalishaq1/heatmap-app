@@ -53,23 +53,16 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <input
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileChange}
-          disabled={uploading}
-          className="block text-sm text-muted-foreground
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-md file:border-0
-            file:text-sm file:font-medium
-            file:bg-primary file:text-primary-foreground
-            hover:file:bg-primary/90
-            file:cursor-pointer cursor-pointer
-            disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        {uploading && (
-          <span className="text-sm text-muted-foreground">Uploading...</span>
-        )}
+        <label className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileChange}
+            disabled={uploading}
+            className="hidden"
+          />
+          {uploading ? 'Uploading...' : 'Choose file'}
+        </label>
       </div>
       {error && (
         <p className="text-sm text-red-500">{error}</p>

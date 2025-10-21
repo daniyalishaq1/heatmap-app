@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { saveCSVFile } from '@/lib/db';
+import { saveFileLocally } from '@/lib/local-storage';
+
+const USE_LOCAL_STORAGE = process.env.NODE_ENV === 'development';
 
 export async function POST(request: Request) {
   try {
@@ -17,10 +20,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Only CSV and Excel files are allowed' }, { status: 400 });
     }
 
+    const saveFileFn = USE_LOCAL_STORAGE ? saveFileLocally : saveCSVFile;
+
     if (isCSV) {
       // Handle CSV files (single sheet)
       const content = await file.text();
-      const result = await saveCSVFile(file.name, content);
+      const result = await saveFileFn(file.name, content);
 
       if (!result.success) {
         return NextResponse.json({ error: 'Failed to save file' }, { status: 500 });
@@ -45,7 +50,7 @@ export async function POST(request: Request) {
         const worksheet = workbook.Sheets[sheetName];
         const csvContent = XLSX.utils.sheet_to_csv(worksheet);
 
-        const result = await saveCSVFile(file.name, csvContent, sheetName);
+        const result = await saveFileFn(file.name, csvContent, sheetName);
 
         if (result.success) {
           sheets.push(sheetName);

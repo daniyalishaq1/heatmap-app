@@ -6,44 +6,99 @@ interface HeatmapData {
   hour: number;
   day: string;
   value: number;
+  conversions?: number;
+  cost?: number;
 }
 
 interface HeatmapProps {
   data: HeatmapData[];
+  metricType?: 'conversions' | 'cost' | 'conversion-cost' | 'cost-conversion';
+  title?: string;
+  hideZeroList?: boolean;
 }
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function Heatmap({ data }: HeatmapProps) {
-  const [hoveredCell, setHoveredCell] = useState<{ day: string; hour: number; value: number } | null>(null);
+export function Heatmap({ data, metricType = 'conversions', title, hideZeroList = false }: HeatmapProps) {
+  const [hoveredCell, setHoveredCell] = useState<{ day: string; hour: number; value: number; conversions?: number; cost?: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  // Find max value for color scaling
+  // Find min and max values for color scaling
   const maxValue = Math.max(...data.map(d => d.value), 1);
+  const minValue = Math.min(...data.map(d => d.value), 0);
 
   // Create a map for quick lookup
-  const dataMap = new Map<string, number>();
+  const dataMap = new Map<string, HeatmapData>();
   data.forEach(d => {
     const key = `${d.day}-${d.hour}`;
-    dataMap.set(key, d.value);
+    dataMap.set(key, d);
   });
 
-  // Get color based on value with 5 shades
-  const getColor = (value: number) => {
-    if (value === 0) return 'rgb(255, 255, 255)'; // white for zero
-    const intensity = Math.min(value / maxValue, 1);
+  // Helper function to interpolate between two hex colors
+  const interpolateColor = (color1: string, color2: string, factor: number) => {
+    const r1 = parseInt(color1.slice(1, 3), 16);
+    const g1 = parseInt(color1.slice(3, 5), 16);
+    const b1 = parseInt(color1.slice(5, 7), 16);
 
-    // 4 shades of purple (light to dark)
-    if (intensity <= 0.25) return 'rgb(196, 181, 253)'; // light purple
-    if (intensity <= 0.5) return 'rgb(147, 129, 255)'; // medium purple
-    if (intensity <= 0.75) return 'rgb(109, 78, 239)'; // dark purple
-    return 'rgb(67, 46, 180)'; // darkest purple
+    const r2 = parseInt(color2.slice(1, 3), 16);
+    const g2 = parseInt(color2.slice(3, 5), 16);
+    const b2 = parseInt(color2.slice(5, 7), 16);
+
+    const r = Math.round(r1 + (r2 - r1) * factor);
+    const g = Math.round(g1 + (g2 - g1) * factor);
+    const b = Math.round(b1 + (b2 - b1) * factor);
+
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   };
 
-  // Get display value
-  const getValue = (day: string, hour: number): number => {
-    return dataMap.get(`${day}-${hour}`) || 0;
+  // Get color based on value using smooth gradient
+  const getColor = (value: number) => {
+    // Special handling for cost/conversion: zero is the worst (dark red/highest)
+    if (metricType === 'cost-conversion' && value === 0) {
+      return '#b91c1c'; // Dark red for zero (worst case)
+    }
+
+    const intensity = Math.min(value / maxValue, 1);
+
+    if (metricType === 'conversions') {
+      // Conversion: white (lowest) to green (highest)
+      return interpolateColor('#ffffff', '#2da155', intensity);
+    } else if (metricType === 'cost') {
+      // Cost: white (lowest) to red (highest)
+      return interpolateColor('#ffffff', '#fe7f7f', intensity);
+    } else if (metricType === 'conversion-cost') {
+      // Conversion/Cost: white (lowest) to green (highest)
+      return interpolateColor('#ffffff', '#2da155', intensity);
+    } else if (metricType === 'cost-conversion') {
+      // Cost/Conversion: white (lowest) to red (highest)
+      return interpolateColor('#ffffff', '#fe7f7f', intensity);
+    }
+
+    // Fallback
+    return interpolateColor('#ffffff', '#2da155', intensity);
+  };
+
+  // Get text color based on background brightness
+  const getTextColor = (value: number) => {
+    const bgColor = getColor(value);
+
+    // Calculate brightness from hex color
+    const r = parseInt(bgColor.slice(1, 3), 16);
+    const g = parseInt(bgColor.slice(3, 5), 16);
+    const b = parseInt(bgColor.slice(5, 7), 16);
+
+    // Use relative luminance formula
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+    // If brightness is above threshold, use black text, otherwise white
+    return brightness > 155 ? '#000000' : '#ffffff';
+  };
+
+  // Get cell data
+  const getCellData = (day: string, hour: number): HeatmapData => {
+    const data = dataMap.get(`${day}-${hour}`);
+    return data || { hour, day, value: 0, conversions: 0, cost: 0 };
   };
 
   // Get all times with zero conversions
@@ -52,8 +107,8 @@ export function Heatmap({ data }: HeatmapProps) {
 
     DAYS.forEach(day => {
       HOURS.forEach(hour => {
-        const value = getValue(day, hour);
-        if (value === 0) {
+        const cellData = getCellData(day, hour);
+        if (cellData.value === 0) {
           zeroTimes.push({ day, hour });
         }
       });
@@ -100,17 +155,24 @@ export function Heatmap({ data }: HeatmapProps) {
                 {HOURS.map(hour => (
                   <React.Fragment key={hour}>
                     {DAYS.map(day => {
-                      const value = getValue(day, hour);
+                      const cellData = getCellData(day, hour);
+                      const value = cellData.value;
                       return (
                         <div
                           key={`${day}-${hour}`}
                           className="w-full h-[26px] border-r border-b border-gray-200 transition-all hover:opacity-80 cursor-pointer flex items-center justify-center font-medium relative text-[10px]"
                           style={{
                             backgroundColor: getColor(value),
-                            color: value > maxValue * 0.5 ? 'white' : 'rgb(31, 41, 55)'
+                            color: getTextColor(value)
                           }}
                           onMouseEnter={(e) => {
-                            setHoveredCell({ day, hour, value });
+                            setHoveredCell({
+                              day,
+                              hour,
+                              value,
+                              conversions: cellData.conversions,
+                              cost: cellData.cost
+                            });
                             setMousePosition({ x: e.clientX, y: e.clientY });
                           }}
                           onMouseMove={(e) => {
@@ -118,14 +180,11 @@ export function Heatmap({ data }: HeatmapProps) {
                           }}
                           onMouseLeave={() => setHoveredCell(null)}
                         >
-                          {value > 0 ? (
-                            value.toFixed(0)
-                          ) : (
-                            <div
-                              className="w-0.5 h-0.5 rounded-full"
-                              style={{ backgroundColor: value > maxValue * 0.5 ? 'white' : 'rgb(31, 41, 55)' }}
-                            />
-                          )}
+                          {value === 0
+                            ? 0
+                            : (metricType === 'conversion-cost' || metricType === 'cost-conversion'
+                              ? value.toFixed(2)
+                              : value)}
                         </div>
                       );
                     })}
@@ -139,15 +198,25 @@ export function Heatmap({ data }: HeatmapProps) {
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-3 mt-4 text-xs">
-        <span className="text-muted-foreground font-medium">Less</span>
+        <span className="text-muted-foreground font-medium">
+          Low ({metricType === 'conversion-cost' || metricType === 'cost-conversion' ? minValue.toFixed(2) : Math.round(minValue)})
+        </span>
         <div className="flex gap-1">
-          <div className="w-6 h-6 rounded border border-gray-300" style={{ backgroundColor: 'rgb(255, 255, 255)' }} title="0 conversions" />
-          <div className="w-6 h-6 rounded" style={{ backgroundColor: 'rgb(196, 181, 253)' }} title="Low" />
-          <div className="w-6 h-6 rounded" style={{ backgroundColor: 'rgb(147, 129, 255)' }} title="Medium" />
-          <div className="w-6 h-6 rounded" style={{ backgroundColor: 'rgb(109, 78, 239)' }} title="High" />
-          <div className="w-6 h-6 rounded" style={{ backgroundColor: 'rgb(67, 46, 180)' }} title="Highest" />
+          <div className="w-6 h-6 rounded border border-gray-300" style={{ backgroundColor: '#ffffff' }} title="Low" />
+          <div className="w-6 h-6 rounded" style={{
+            backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
+              ? interpolateColor('#ffffff', '#2da155', 0.5)
+              : interpolateColor('#ffffff', '#fe7f7f', 0.5)
+          }} title="Medium" />
+          <div className="w-6 h-6 rounded" style={{
+            backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
+              ? '#2da155'
+              : '#fe7f7f'
+          }} title="High" />
         </div>
-        <span className="text-muted-foreground font-medium">More</span>
+        <span className="text-muted-foreground font-medium">
+          High ({metricType === 'conversion-cost' || metricType === 'cost-conversion' ? maxValue.toFixed(2) : Math.round(maxValue)})
+        </span>
       </div>
 
       {/* Custom Tooltip */}
@@ -159,12 +228,20 @@ export function Heatmap({ data }: HeatmapProps) {
             top: `${mousePosition.y + 10}px`,
           }}
         >
-          {hoveredCell.day} {formatTime(hoveredCell.hour)} - {hoveredCell.value.toFixed(2)} conversions
+          {hoveredCell.day} {formatTime(hoveredCell.hour)} - {
+            metricType === 'conversions'
+              ? `Cost: ${hoveredCell.cost?.toFixed(2) || 0}`
+              : metricType === 'cost'
+              ? `Conversions: ${hoveredCell.conversions || 0}`
+              : metricType === 'conversion-cost'
+              ? `Conversions: ${hoveredCell.conversions || 0}, Cost: ${hoveredCell.cost?.toFixed(2) || 0}`
+              : `Conversions: ${hoveredCell.conversions || 0}, Cost: ${hoveredCell.cost?.toFixed(2) || 0}`
+          }
         </div>
       )}
 
       {/* Zero Conversions List */}
-      {zeroConversionTimes.length > 0 && (
+      {!hideZeroList && zeroConversionTimes.length > 0 && (
         <div className="mt-6 border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold mb-3">Times with Zero Conversions ({zeroConversionTimes.length})</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">

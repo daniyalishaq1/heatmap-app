@@ -61,7 +61,7 @@ export async function getSheetsByFilename(filename: string) {
     const client = await getPool().connect();
     try {
       const result = await client.query(
-        'SELECT DISTINCT sheet_name FROM csv_files WHERE filename = $1 ORDER BY sheet_name',
+        'SELECT DISTINCT sheet_name FROM csv_files WHERE filename = $1 AND sheet_name IS NOT NULL ORDER BY sheet_name',
         [filename]
       );
       return result.rows.map(row => row.sheet_name);

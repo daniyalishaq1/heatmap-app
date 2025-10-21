@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSheetsByFilename } from '@/lib/db';
+import { getSheetsLocally } from '@/lib/local-storage';
+
+const USE_LOCAL_STORAGE = process.env.NODE_ENV === 'development';
 
 export async function GET(
   request: Request,
@@ -7,7 +10,9 @@ export async function GET(
 ) {
   try {
     const { filename } = await params;
-    const sheets = await getSheetsByFilename(filename);
+    const sheets = USE_LOCAL_STORAGE
+      ? await getSheetsLocally(filename)
+      : await getSheetsByFilename(filename);
 
     return NextResponse.json(sheets);
   } catch (error) {
