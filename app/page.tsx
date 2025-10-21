@@ -158,20 +158,44 @@ export default function Home() {
 
   const handleDeleteConfirm = async () => {
     try {
+      // Immediately update UI - remove file from list
+      const updatedFiles = files.filter(f => f.filename !== fileToDelete);
+      setFiles(updatedFiles);
+
+      // Close dialog immediately
+      setDeleteDialogOpen(false);
+
+      // If deleted file was selected, select first remaining file
+      if (selectedFile === fileToDelete) {
+        if (updatedFiles.length > 0) {
+          setSelectedFile(updatedFiles[0].filename);
+          if (updatedFiles[0].sheets.length > 0) {
+            setSelectedSheet(updatedFiles[0].sheets[0]);
+          } else {
+            setSelectedSheet('');
+          }
+        } else {
+          setSelectedFile('');
+          setSelectedSheet('');
+        }
+      }
+
+      setFileToDelete('');
+
+      // Perform actual delete in background
       const response = await fetch(`/api/csv/${encodeURIComponent(fileToDelete)}`, {
         method: 'DELETE',
       });
 
-      if (response.ok) {
-        // Refresh file list
+      if (!response.ok) {
+        console.error('Failed to delete file from server');
+        // Refresh to sync with server state
         await fetchCSVFiles();
-        setDeleteDialogOpen(false);
-        setFileToDelete('');
-      } else {
-        console.error('Failed to delete file');
       }
     } catch (error) {
       console.error('Error deleting file:', error);
+      // Refresh to sync with server state
+      await fetchCSVFiles();
     }
   };
 
@@ -308,10 +332,10 @@ export default function Home() {
                         e.stopPropagation();
                         handleDeleteClick(file.filename);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-opacity cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 active:bg-red-100 rounded transition-all cursor-pointer"
                       title="Delete file"
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Trash2 className="h-4 w-4 text-red-600 hover:text-red-700" />
                     </button>
                   </div>
                 </div>
@@ -427,10 +451,16 @@ export default function Home() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>
+            <AlertDialogCancel
+              onClick={() => setDeleteDialogOpen(false)}
+              className="hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm}>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700 active:bg-red-800 transition-colors"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
