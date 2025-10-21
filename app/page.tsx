@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { Heatmap } from '@/components/heatmap';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileUpload } from '@/components/file-upload';
@@ -66,6 +66,8 @@ export default function Home() {
   const [selectedView, setSelectedView] = useState<HeatmapView>('conversions');
   // Cache to store all loaded file data
   const [dataCache, setDataCache] = useState<Map<string, CachedSheetData>>(new Map());
+  // Track if we just loaded from cache to skip useEffect
+  const [skipNextLoad, setSkipNextLoad] = useState(false);
 
   // Fetch list of CSV files
   useEffect(() => {
@@ -74,6 +76,10 @@ export default function Home() {
 
   // Load CSV data when file and sheet are selected
   useEffect(() => {
+    if (skipNextLoad) {
+      setSkipNextLoad(false);
+      return;
+    }
     if (selectedFile) {
       loadCSVData(selectedFile, selectedSheet);
     }
@@ -163,17 +169,24 @@ export default function Home() {
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Update data immediately from cache
-      setHeatmapData(cachedData.conversions);
-      setCostData(cachedData.cost);
-      setConversionCostData(cachedData.conversionCost);
-      setCostConversionData(cachedData.costConversion);
-      console.log(`Loaded from cache (file switch): ${cacheKey}`);
-    }
+      // Update selection state immediately (high priority)
+      setSelectedFile(filename);
+      setSelectedSheet(sheetName);
+      setSkipNextLoad(true);
 
-    // Then update state
-    setSelectedFile(filename);
-    setSelectedSheet(sheetName);
+      // Update data in transition (can be interrupted for newer clicks)
+      startTransition(() => {
+        setHeatmapData(cachedData.conversions);
+        setCostData(cachedData.cost);
+        setConversionCostData(cachedData.conversionCost);
+        setCostConversionData(cachedData.costConversion);
+      });
+      console.log(`Loaded from cache (file switch): ${cacheKey}`);
+    } else {
+      // No cache, update normally
+      setSelectedFile(filename);
+      setSelectedSheet(sheetName);
+    }
   };
 
   const handleSheetSelect = (sheet: string) => {
@@ -182,16 +195,22 @@ export default function Home() {
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Update data immediately from cache
-      setHeatmapData(cachedData.conversions);
-      setCostData(cachedData.cost);
-      setConversionCostData(cachedData.conversionCost);
-      setCostConversionData(cachedData.costConversion);
-      console.log(`Loaded from cache (sheet switch): ${cacheKey}`);
-    }
+      // Update selection state immediately (high priority)
+      setSelectedSheet(sheet);
+      setSkipNextLoad(true);
 
-    // Then update state
-    setSelectedSheet(sheet);
+      // Update data in transition (can be interrupted for newer clicks)
+      startTransition(() => {
+        setHeatmapData(cachedData.conversions);
+        setCostData(cachedData.cost);
+        setConversionCostData(cachedData.conversionCost);
+        setCostConversionData(cachedData.costConversion);
+      });
+      console.log(`Loaded from cache (sheet switch): ${cacheKey}`);
+    } else {
+      // No cache, update normally
+      setSelectedSheet(sheet);
+    }
   };
 
   const handleDeleteClick = (filename: string) => {
