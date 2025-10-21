@@ -91,11 +91,11 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
         const redGradient = ['#fee2e2', '#fca5a5', '#f87171', '#dc2626', '#991b1b'];
         return getGradientColor(Math.min(costIntensity, 1), redGradient);
       } else {
-        // Non-zero conversions = show based on cost/conversion ratio (light green to dark green)
-        // Lower cost per conversion is better (light green), higher is worse (dark green)
+        // Non-zero conversions = show based on cost/conversion ratio (dark green to light green)
+        // Lower cost per conversion is better (dark green), higher is worse (light green)
         const intensity = Math.min(value / maxValue, 1);
-        // Multi-shade green gradient: light green → light-medium green → medium green → medium-dark green → dark green
-        const greenGradient = ['#6ee7b7', '#10b981', '#059669', '#047857', '#065f46'];
+        // Multi-shade green gradient: dark green → medium-dark green → medium green → light-medium green → light green
+        const greenGradient = ['#065f46', '#047857', '#059669', '#10b981', '#6ee7b7'];
         return getGradientColor(intensity, greenGradient);
       }
     }
@@ -242,13 +242,13 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground font-medium">Non-zero values:</span>
               <div className="flex gap-0.5 items-center">
-                <div className="w-5 h-6 rounded-l" style={{ backgroundColor: '#6ee7b7' }} title="Best (Lowest Cost/Conv)" />
-                <div className="w-5 h-6" style={{ backgroundColor: '#10b981' }} title="Very Good" />
+                <div className="w-5 h-6 rounded-l" style={{ backgroundColor: '#065f46' }} title="Best (Lowest Cost/Conv)" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#047857' }} title="Very Good" />
                 <div className="w-5 h-6" style={{ backgroundColor: '#059669' }} title="Good" />
-                <div className="w-5 h-6" style={{ backgroundColor: '#047857' }} title="Fair" />
-                <div className="w-5 h-6 rounded-r" style={{ backgroundColor: '#065f46' }} title="Worst (Highest Cost/Conv)" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#10b981' }} title="Fair" />
+                <div className="w-5 h-6 rounded-r" style={{ backgroundColor: '#6ee7b7' }} title="Worst (Highest Cost/Conv)" />
               </div>
-              <span className="text-muted-foreground font-medium text-xs">(Light Green = Best, Dark Green = Worst)</span>
+              <span className="text-muted-foreground font-medium text-xs">(Dark Green = Best, Light Green = Worst)</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground font-medium">Zero conversions:</span>
