@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, startTransition } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Heatmap } from '@/components/heatmap';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileUpload } from '@/components/file-upload';
@@ -64,10 +64,13 @@ export default function Home() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<string>('');
   const [selectedView, setSelectedView] = useState<HeatmapView>('conversions');
-  // Cache to store all loaded file data
-  const [dataCache, setDataCache] = useState<Map<string, CachedSheetData>>(new Map());
+  // Cache to store all loaded file data (use ref to avoid re-renders)
+  const dataCacheRef = useRef<Map<string, CachedSheetData>>(new Map());
+  const dataCache = dataCacheRef.current;
   // Track if we just loaded from cache to skip useEffect
   const [skipNextLoad, setSkipNextLoad] = useState(false);
+  // Track pending animation frames to cancel outdated ones
+  const pendingFrameRef = useRef<number | null>(null);
 
   // Fetch list of CSV files
   useEffect(() => {
@@ -164,52 +167,57 @@ export default function Home() {
     const file = files.find(f => f.filename === filename);
     const sheetName = file && file.sheets.length > 0 ? file.sheets[0] : '';
 
+    // Cancel any pending animation frame from previous clicks
+    if (pendingFrameRef.current !== null) {
+      cancelAnimationFrame(pendingFrameRef.current);
+    }
+
+    // Update selection immediately for instant UI feedback
+    setSelectedFile(filename);
+    setSelectedSheet(sheetName);
+
     // Load from cache immediately
     const cacheKey = `${filename}::${sheetName}`;
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Update selection state immediately (high priority)
-      setSelectedFile(filename);
-      setSelectedSheet(sheetName);
-      setSkipNextLoad(true);
-
-      // Update data in transition (can be interrupted for newer clicks)
-      startTransition(() => {
+      // Use requestAnimationFrame to batch updates and avoid blocking
+      pendingFrameRef.current = requestAnimationFrame(() => {
         setHeatmapData(cachedData.conversions);
         setCostData(cachedData.cost);
         setConversionCostData(cachedData.conversionCost);
         setCostConversionData(cachedData.costConversion);
+        setSkipNextLoad(true);
+        pendingFrameRef.current = null;
       });
       console.log(`Loaded from cache (file switch): ${cacheKey}`);
-    } else {
-      // No cache, update normally
-      setSelectedFile(filename);
-      setSelectedSheet(sheetName);
     }
   };
 
   const handleSheetSelect = (sheet: string) => {
+    // Cancel any pending animation frame from previous clicks
+    if (pendingFrameRef.current !== null) {
+      cancelAnimationFrame(pendingFrameRef.current);
+    }
+
+    // Update selection immediately for instant UI feedback
+    setSelectedSheet(sheet);
+
     // Load from cache immediately
     const cacheKey = `${selectedFile}::${sheet}`;
     const cachedData = dataCache.get(cacheKey);
 
     if (cachedData) {
-      // Update selection state immediately (high priority)
-      setSelectedSheet(sheet);
-      setSkipNextLoad(true);
-
-      // Update data in transition (can be interrupted for newer clicks)
-      startTransition(() => {
+      // Use requestAnimationFrame to batch updates and avoid blocking
+      pendingFrameRef.current = requestAnimationFrame(() => {
         setHeatmapData(cachedData.conversions);
         setCostData(cachedData.cost);
         setConversionCostData(cachedData.conversionCost);
         setCostConversionData(cachedData.costConversion);
+        setSkipNextLoad(true);
+        pendingFrameRef.current = null;
       });
       console.log(`Loaded from cache (sheet switch): ${cacheKey}`);
-    } else {
-      // No cache, update normally
-      setSelectedSheet(sheet);
     }
   };
 
@@ -228,13 +236,11 @@ export default function Home() {
       setDeleteDialogOpen(false);
 
       // Clear cache entries for deleted file
-      const newCache = new Map(dataCache);
-      for (const key of newCache.keys()) {
+      for (const key of dataCacheRef.current.keys()) {
         if (key.startsWith(`${fileToDelete}::`)) {
-          newCache.delete(key);
+          dataCacheRef.current.delete(key);
         }
       }
-      setDataCache(newCache);
 
       // If deleted file was selected, select first remaining file
       if (selectedFile === fileToDelete) {
@@ -272,8 +278,6 @@ export default function Home() {
 
   // Preload all files and sheets into cache
   const preloadAllFiles = async () => {
-    const newCache = new Map<string, CachedSheetData>();
-
     for (const file of files) {
       if (file.sheets.length > 0) {
         // File with sheets (Excel)
@@ -281,7 +285,7 @@ export default function Home() {
           const cacheKey = `${file.filename}::${sheet}`;
           const data = await fetchAndTransformData(file.filename, sheet);
           if (data) {
-            newCache.set(cacheKey, data);
+            dataCacheRef.current.set(cacheKey, data);
           }
         }
       } else {
@@ -289,13 +293,12 @@ export default function Home() {
         const cacheKey = `${file.filename}::`;
         const data = await fetchAndTransformData(file.filename, '');
         if (data) {
-          newCache.set(cacheKey, data);
+          dataCacheRef.current.set(cacheKey, data);
         }
       }
     }
 
-    setDataCache(newCache);
-    console.log(`Preloaded ${newCache.size} sheets into cache`);
+    console.log(`Preloaded ${dataCacheRef.current.size} sheets into cache`);
   };
 
   // Fetch and transform CSV data
@@ -395,7 +398,7 @@ export default function Home() {
         setCostConversionData(data.costConversion);
 
         // Add to cache
-        setDataCache(prev => new Map(prev).set(cacheKey, data));
+        dataCacheRef.current.set(cacheKey, data);
       }
     }
   };
