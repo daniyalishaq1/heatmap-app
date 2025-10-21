@@ -52,11 +52,52 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   };
 
+  // Multi-step gradient interpolation
+  const getGradientColor = (intensity: number, colors: string[]) => {
+    if (intensity <= 0) return colors[0];
+    if (intensity >= 1) return colors[colors.length - 1];
+
+    const segments = colors.length - 1;
+    const segmentSize = 1 / segments;
+    const segmentIndex = Math.min(Math.floor(intensity / segmentSize), segments - 1);
+    const segmentIntensity = (intensity - (segmentIndex * segmentSize)) / segmentSize;
+
+    return interpolateColor(colors[segmentIndex], colors[segmentIndex + 1], segmentIntensity);
+  };
+
   // Get color based on value using smooth gradient
-  const getColor = (value: number) => {
-    // Special handling for cost/conversion: zero is the worst (dark red/highest)
-    if (metricType === 'cost-conversion' && value === 0) {
-      return '#b91c1c'; // Dark red for zero (worst case)
+  const getColor = (value: number, conversions?: number, cost?: number) => {
+    // Special handling for Performance Heatmap (cost-conversion)
+    if (metricType === 'cost-conversion') {
+      if (conversions === 0 || value === 0) {
+        // Zero conversions = show based on cost (light red to dark red with more shades)
+        // Find the max cost among zero-conversion cells
+        const zeroCostValues = data
+          .filter(d => (d.conversions === 0 || d.value === 0))
+          .map(d => d.cost || 0);
+        const maxZeroCost = Math.max(...zeroCostValues, 1);
+        const minZeroCost = Math.min(...zeroCostValues.filter(c => c > 0), 0);
+
+        if (cost === undefined || cost === 0) {
+          return '#fee2e2'; // Very light red for zero cost
+        }
+
+        // Normalize cost value between min and max
+        const costIntensity = maxZeroCost > minZeroCost
+          ? (cost - minZeroCost) / (maxZeroCost - minZeroCost)
+          : 0;
+
+        // Multi-shade red gradient: very light red → light red → medium red → dark red → very dark red
+        const redGradient = ['#fee2e2', '#fca5a5', '#f87171', '#dc2626', '#991b1b'];
+        return getGradientColor(Math.min(costIntensity, 1), redGradient);
+      } else {
+        // Non-zero conversions = show based on cost/conversion ratio (light green to dark green)
+        // Lower cost per conversion is better (light green), higher is worse (dark green)
+        const intensity = Math.min(value / maxValue, 1);
+        // Multi-shade green gradient: light green → light-medium green → medium green → medium-dark green → dark green
+        const greenGradient = ['#6ee7b7', '#10b981', '#059669', '#047857', '#065f46'];
+        return getGradientColor(intensity, greenGradient);
+      }
     }
 
     const intensity = Math.min(value / maxValue, 1);
@@ -70,9 +111,6 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
     } else if (metricType === 'conversion-cost') {
       // Conversion/Cost: white (lowest) to green (highest)
       return interpolateColor('#ffffff', '#2da155', intensity);
-    } else if (metricType === 'cost-conversion') {
-      // Cost/Conversion: white (lowest) to red (highest)
-      return interpolateColor('#ffffff', '#fe7f7f', intensity);
     }
 
     // Fallback
@@ -80,8 +118,8 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
   };
 
   // Get text color based on background brightness
-  const getTextColor = (value: number) => {
-    const bgColor = getColor(value);
+  const getTextColor = (value: number, conversions?: number, cost?: number) => {
+    const bgColor = getColor(value, conversions, cost);
 
     // Calculate brightness from hex color
     const r = parseInt(bgColor.slice(1, 3), 16);
@@ -162,8 +200,8 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
                           key={`${day}-${hour}`}
                           className="w-full h-[26px] border-r border-b border-gray-200 transition-all hover:opacity-80 cursor-pointer flex items-center justify-center font-medium relative text-[10px]"
                           style={{
-                            backgroundColor: getColor(value),
-                            color: getTextColor(value)
+                            backgroundColor: getColor(value, cellData.conversions, cellData.cost),
+                            color: getTextColor(value, cellData.conversions, cellData.cost)
                           }}
                           onMouseEnter={(e) => {
                             setHoveredCell({
@@ -198,25 +236,55 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-3 mt-4 text-xs">
-        <span className="text-muted-foreground font-medium">
-          Low ({metricType === 'conversion-cost' || metricType === 'cost-conversion' ? minValue.toFixed(2) : Math.round(minValue)})
-        </span>
-        <div className="flex gap-1">
-          <div className="w-6 h-6 rounded border border-gray-300" style={{ backgroundColor: '#ffffff' }} title="Low" />
-          <div className="w-6 h-6 rounded" style={{
-            backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
-              ? interpolateColor('#ffffff', '#2da155', 0.5)
-              : interpolateColor('#ffffff', '#fe7f7f', 0.5)
-          }} title="Medium" />
-          <div className="w-6 h-6 rounded" style={{
-            backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
-              ? '#2da155'
-              : '#fe7f7f'
-          }} title="High" />
-        </div>
-        <span className="text-muted-foreground font-medium">
-          High ({metricType === 'conversion-cost' || metricType === 'cost-conversion' ? maxValue.toFixed(2) : Math.round(maxValue)})
-        </span>
+        {metricType === 'cost-conversion' ? (
+          // Performance Heatmap has two separate scales at edges
+          <div className="flex items-center justify-between w-full px-4">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground font-medium">Non-zero values:</span>
+              <div className="flex gap-0.5 items-center">
+                <div className="w-5 h-6 rounded-l" style={{ backgroundColor: '#6ee7b7' }} title="Best (Lowest Cost/Conv)" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#10b981' }} title="Very Good" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#059669' }} title="Good" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#047857' }} title="Fair" />
+                <div className="w-5 h-6 rounded-r" style={{ backgroundColor: '#065f46' }} title="Worst (Highest Cost/Conv)" />
+              </div>
+              <span className="text-muted-foreground font-medium text-xs">(Light Green = Best, Dark Green = Worst)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground font-medium">Zero conversions:</span>
+              <div className="flex gap-0.5 items-center">
+                <div className="w-5 h-6 rounded-l" style={{ backgroundColor: '#fee2e2' }} title="Lowest Cost" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#fca5a5' }} title="Low Cost" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#f87171' }} title="Medium Cost" />
+                <div className="w-5 h-6" style={{ backgroundColor: '#dc2626' }} title="High Cost" />
+                <div className="w-5 h-6 rounded-r" style={{ backgroundColor: '#991b1b' }} title="Highest Cost" />
+              </div>
+              <span className="text-muted-foreground font-medium text-xs">(Light Red = Low Cost, Dark Red = High Cost)</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            <span className="text-muted-foreground font-medium">
+              Low ({metricType === 'conversion-cost' ? minValue.toFixed(2) : Math.round(minValue)})
+            </span>
+            <div className="flex gap-1">
+              <div className="w-6 h-6 rounded border border-gray-300" style={{ backgroundColor: '#ffffff' }} title="Low" />
+              <div className="w-6 h-6 rounded" style={{
+                backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
+                  ? interpolateColor('#ffffff', '#2da155', 0.5)
+                  : interpolateColor('#ffffff', '#fe7f7f', 0.5)
+              }} title="Medium" />
+              <div className="w-6 h-6 rounded" style={{
+                backgroundColor: metricType === 'conversions' || metricType === 'conversion-cost'
+                  ? '#2da155'
+                  : '#fe7f7f'
+              }} title="High" />
+            </div>
+            <span className="text-muted-foreground font-medium">
+              High ({metricType === 'conversion-cost' ? maxValue.toFixed(2) : Math.round(maxValue)})
+            </span>
+          </>
+        )}
       </div>
 
       {/* Custom Tooltip */}
@@ -224,8 +292,12 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
         <div
           className="fixed z-50 pointer-events-none bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
           style={{
-            left: `${mousePosition.x + 10}px`,
-            top: `${mousePosition.y + 10}px`,
+            left: mousePosition.x + 200 > window.innerWidth
+              ? `${mousePosition.x - 200}px`
+              : `${mousePosition.x + 10}px`,
+            top: mousePosition.y + 50 > window.innerHeight
+              ? `${mousePosition.y - 40}px`
+              : `${mousePosition.y + 10}px`,
           }}
         >
           {hoveredCell.day} {formatTime(hoveredCell.hour)} - {

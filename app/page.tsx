@@ -278,7 +278,7 @@ export default function Home() {
       case 'conversion-cost':
         return 'Conversion/Cost Heatmap';
       case 'cost-conversion':
-        return 'Cost/Conversion Heatmap';
+        return 'Performance Heatmap';
       case 'all':
         return 'All Views';
       default:
@@ -390,7 +390,7 @@ export default function Home() {
                 <SelectItem value="conversions">Conversion Heatmap</SelectItem>
                 <SelectItem value="cost">Cost Heatmap</SelectItem>
                 <SelectItem value="conversion-cost">Conversion/Cost Heatmap</SelectItem>
-                <SelectItem value="cost-conversion">Cost/Conversion Heatmap</SelectItem>
+                <SelectItem value="cost-conversion">Performance Heatmap</SelectItem>
                 <SelectItem value="all">All Views</SelectItem>
               </SelectContent>
             </Select>
@@ -415,7 +415,7 @@ export default function Home() {
                       <Heatmap data={conversionCostData} metricType="conversion-cost" hideZeroList={true} />
                     </div>
                     <div className="p-4">
-                      <h3 className="text-sm font-semibold mb-2">Cost/Conversion Heatmap</h3>
+                      <h3 className="text-sm font-semibold mb-2">Performance Heatmap</h3>
                       <Heatmap data={costConversionData} metricType="cost-conversion" hideZeroList={true} />
                     </div>
                   </div>
