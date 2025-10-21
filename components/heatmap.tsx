@@ -20,7 +20,7 @@ interface HeatmapProps {
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export function Heatmap({ data, metricType = 'conversions', title, hideZeroList = false }: HeatmapProps) {
+export function Heatmap({ data, metricType = 'conversions', hideZeroList = false }: HeatmapProps) {
   const [hoveredCell, setHoveredCell] = useState<{ day: string; hour: number; value: number; conversions?: number; cost?: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
