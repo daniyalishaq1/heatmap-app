@@ -74,9 +74,11 @@ export async function getAllCSVFiles() {
   try {
     const client = await getPool().connect();
     try {
+      // Get distinct filenames with their most recent upload time
       const result = await client.query(`
-        SELECT DISTINCT filename, uploaded_at
+        SELECT filename, MAX(uploaded_at) as uploaded_at
         FROM csv_files
+        GROUP BY filename
         ORDER BY uploaded_at DESC
       `);
       return result.rows;

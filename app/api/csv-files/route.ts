@@ -11,8 +11,9 @@ export async function GET() {
       return NextResponse.json(filenames);
     } else {
       const files = await getAllCSVFiles();
-      const filenames = files.map(file => file.filename);
-      return NextResponse.json(filenames);
+      // Deduplicate filenames (in case DISTINCT doesn't work properly)
+      const uniqueFilenames = Array.from(new Set(files.map(file => file.filename)));
+      return NextResponse.json(uniqueFilenames);
     }
   } catch (error) {
     console.error('Error reading CSV files:', error);
