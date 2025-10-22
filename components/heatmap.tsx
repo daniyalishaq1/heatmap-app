@@ -248,7 +248,7 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
                 <div className="w-5 h-6" style={{ backgroundColor: '#10b981' }} title="Fair" />
                 <div className="w-5 h-6 rounded-r" style={{ backgroundColor: '#6ee7b7' }} title="Worst (Highest Cost/Conv)" />
               </div>
-              <span className="text-muted-foreground font-medium text-xs">(Dark Green = Best, Light Green = Worst)</span>
+              <span className="text-muted-foreground font-medium text-xs">(Dark Green = low CPA, Light Green = high CPA)</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground font-medium">Zero conversions:</span>
