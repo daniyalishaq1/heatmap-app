@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Heatmap } from '@/components/heatmap';
+import { HourlyPerformanceTrends } from '@/components/hourly-trends';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileUpload } from '@/components/file-upload';
 import { Trash2 } from 'lucide-react';
@@ -43,7 +44,7 @@ interface FileWithSheets {
   sheets: string[];
 }
 
-type HeatmapView = 'conversions' | 'cost' | 'conversion-cost' | 'cost-conversion' | 'all';
+type HeatmapView = 'conversions' | 'cost' | 'conversion-cost' | 'cost-conversion' | 'quintiles' | 'all' | 'hourly-trends';
 
 interface CachedSheetData {
   conversions: HeatmapData[];
@@ -398,6 +399,10 @@ export default function Home() {
         return 'Conversion/Cost Heatmap';
       case 'cost-conversion':
         return 'Performance Heatmap';
+      case 'quintiles':
+        return 'Quintiles Analysis';
+      case 'hourly-trends':
+        return 'Hourly Performance Trends';
       case 'all':
         return 'All Views';
       default:
@@ -510,6 +515,8 @@ export default function Home() {
                 <SelectItem value="cost">Cost Heatmap</SelectItem>
                 <SelectItem value="conversion-cost">Conversion/Cost Heatmap</SelectItem>
                 <SelectItem value="cost-conversion">Performance Heatmap</SelectItem>
+                <SelectItem value="quintiles">Quintiles Analysis</SelectItem>
+                <SelectItem value="hourly-trends">Hourly Performance Trends</SelectItem>
                 <SelectItem value="all">All Views</SelectItem>
               </SelectContent>
             </Select>
@@ -538,15 +545,18 @@ export default function Home() {
                       <Heatmap data={allHeatmapData.costConversion} metricType="cost-conversion" hideZeroList={true} />
                     </div>
                   </div>
+                ) : selectedView === 'hourly-trends' ? (
+                  <HourlyPerformanceTrends data={allHeatmapData.conversions} />
                 ) : (
                   <Heatmap
                     data={
                       selectedView === 'conversions' ? allHeatmapData.conversions :
                       selectedView === 'cost' ? allHeatmapData.cost :
                       selectedView === 'conversion-cost' ? allHeatmapData.conversionCost :
+                      selectedView === 'quintiles' ? allHeatmapData.costConversion :
                       allHeatmapData.costConversion
                     }
-                    metricType={selectedView}
+                    metricType={selectedView === 'quintiles' ? 'quintiles' : selectedView}
                   />
                 )
               ) : (
