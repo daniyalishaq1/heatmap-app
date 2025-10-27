@@ -36,6 +36,7 @@ interface CalendarViewProps {
     quintileSpend: number;
   };
   blockSize: '1hour' | '4hour';
+  blockGrouping: '4-8-12' | '11-3-7' | '10-2-6';
   fourHourQuintileData?: Array<Array<{
     day: string;
     blockLabel: string;
@@ -47,8 +48,22 @@ interface CalendarViewProps {
   }>> | null;
 }
 
-function CalendarView({ data, quintileData, blockSize, fourHourQuintileData }: CalendarViewProps) {
+function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQuintileData }: CalendarViewProps) {
   const [selectedQuintiles, setSelectedQuintiles] = useState<Set<number>>(new Set());
+
+  // Get the hour blocks based on the selected grouping
+  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+    switch (grouping) {
+      case '4-8-12':
+        return [4, 8, 12, 16, 20, 0]; // 4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am
+      case '11-3-7':
+        return [11, 15, 19, 23, 3, 7]; // 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am
+      case '10-2-6':
+        return [10, 14, 18, 22, 2, 6]; // 10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am
+    }
+  };
+
+  const blockStarts = getBlockStarts(blockGrouping);
 
   const getQuintileColor = (quintileIndex: number) => {
     const colors = [
@@ -223,7 +238,7 @@ function CalendarView({ data, quintileData, blockSize, fourHourQuintileData }: C
       <div className="flex gap-0">
         {/* Time labels column */}
         <div className="flex flex-col text-[10px] pt-[40px]">
-          {[0, 4, 8, 12, 16, 20].map(blockStart => (
+          {blockStarts.map(blockStart => (
               <div key={blockStart} className="h-[46px] font-medium text-right text-muted-foreground flex items-center justify-end pr-3" style={{ marginBottom: '2px' }}>
                 {formatBlockTime(blockStart, blockStart + 3)}
               </div>
@@ -243,7 +258,7 @@ function CalendarView({ data, quintileData, blockSize, fourHourQuintileData }: C
 
           {/* Grid cells */}
           <div className="grid grid-cols-7 gap-0.5 bg-gray-200 p-0.5">
-            {[0, 4, 8, 12, 16, 20].map(blockStart => (
+            {blockStarts.map(blockStart => (
                 DAYS.map(day => {
                   const blockData = getBlockData(day, blockStart);
                   const quintileIndex = getBlockQuintileIndex(day, blockStart);
@@ -321,6 +336,34 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
   const [hoveredCell, setHoveredCell] = useState<{ day: string; hour: number; value: number; conversions?: number; cost?: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [quintileBlockSize, setQuintileBlockSize] = useState<'1hour' | '4hour'>('1hour');
+  const [blockGrouping, setBlockGrouping] = useState<'4-8-12' | '11-3-7' | '10-2-6'>('4-8-12');
+
+  // Get the hour blocks based on the selected grouping
+  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+    switch (grouping) {
+      case '4-8-12':
+        return [4, 8, 12, 16, 20, 0]; // 4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am
+      case '11-3-7':
+        return [11, 15, 19, 23, 3, 7]; // 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am
+      case '10-2-6':
+        return [10, 14, 18, 22, 2, 6]; // 10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am
+    }
+  };
+
+  // Check if an hour belongs to the current block grouping
+  const isHourInBlockGrouping = (hour: number, grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+    const blockStarts = getBlockStarts(grouping);
+    for (const start of blockStarts) {
+      const hours = [];
+      for (let i = 0; i < 4; i++) {
+        hours.push((start + i) % 24);
+      }
+      if (hours.includes(hour)) {
+        return true;
+      }
+    }
+    return false;
+  };
 
   // Find min and max values for color scaling
   const maxValue = Math.max(...data.map(d => d.value), 1);
@@ -533,7 +576,7 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
         conversions: item.conversions,
         costPerConversion: item.costPerConversion
       }))
-    ];
+    ].filter(item => isHourInBlockGrouping(item.hour, blockGrouping));
 
     const totalSpend = allHours.reduce((sum, h) => sum + h.cost, 0);
     const quintileSpend = totalSpend * 0.2;
@@ -915,33 +958,79 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
       {!hideZeroList && metricType === 'quintiles' && quintileData && (
         <>
           <div className="mt-6 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">
-                Quintiles Analysis
-              </h3>
-              {/* Tab selector */}
-              <div className="flex gap-2 border border-gray-200 rounded-lg p-1">
-                <button
-                  onClick={() => setQuintileBlockSize('1hour')}
-                  className={`px-3 py-1 text-xs rounded transition-colors ${
-                    quintileBlockSize === '1hour'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  1 Hour Block
-                </button>
-                <button
-                  onClick={() => setQuintileBlockSize('4hour')}
-                  className={`px-3 py-1 text-xs rounded transition-colors ${
-                    quintileBlockSize === '4hour'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  4 Hour Blocks
-                </button>
+            <div className="space-y-4 mb-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">
+                  Quintiles Analysis
+                </h3>
+                {/* Block Size Tab selector */}
+                <div className="flex gap-2 border border-gray-200 rounded-lg p-1">
+                  <button
+                    onClick={() => setQuintileBlockSize('1hour')}
+                    className={`px-3 py-1 text-xs rounded transition-colors ${
+                      quintileBlockSize === '1hour'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    1 Hour Block
+                  </button>
+                  <button
+                    onClick={() => setQuintileBlockSize('4hour')}
+                    className={`px-3 py-1 text-xs rounded transition-colors ${
+                      quintileBlockSize === '4hour'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    4 Hour Blocks
+                  </button>
+                </div>
               </div>
+
+              {/* Block Grouping Filter Tabs - Only show for 4 Hour Blocks */}
+              {quintileBlockSize === '4hour' && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-gray-700">Block Grouping:</span>
+                  <div className="flex gap-2 border border-gray-200 rounded-lg p-1">
+                    <button
+                      onClick={() => setBlockGrouping('4-8-12')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        blockGrouping === '4-8-12'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      4-8-12
+                    </button>
+                    <button
+                      onClick={() => setBlockGrouping('11-3-7')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        blockGrouping === '11-3-7'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      11-3-7
+                    </button>
+                    <button
+                      onClick={() => setBlockGrouping('10-2-6')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        blockGrouping === '10-2-6'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      10-2-6
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {blockGrouping === '4-8-12' && '(4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am)'}
+                    {blockGrouping === '11-3-7' && '(11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am)'}
+                    {blockGrouping === '10-2-6' && '(10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am)'}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="space-y-3">
               {quintileBlockSize === '1hour' ? (
@@ -1041,6 +1130,7 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
             data={data}
             quintileData={quintileData}
             blockSize={'4hour'}
+            blockGrouping={blockGrouping}
             fourHourQuintileData={fourHourQuintileData}
           />
         </>
