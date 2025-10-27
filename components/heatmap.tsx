@@ -48,7 +48,7 @@ interface CalendarViewProps {
   }>> | null;
 }
 
-function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQuintileData }: CalendarViewProps) {
+function CalendarView({ blockGrouping, fourHourQuintileData }: CalendarViewProps) {
   const [selectedQuintiles, setSelectedQuintiles] = useState<Set<number>>(new Set());
 
   // Get the hour blocks based on the selected grouping
@@ -83,11 +83,6 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
     return quintileIndex === 2 ? '#000000' : '#ffffff';
   };
 
-  // Format time for display
-  const formatTime = (hour: number) => {
-    return hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`;
-  };
-
   // Format time range for 4-hour blocks
   const formatBlockTime = (start: number, end: number) => {
     const formatHour = (h: number) => {
@@ -98,12 +93,6 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
       return `${hour - 12}pm`;
     };
     return `${formatHour(start)}-${formatHour(end + 1)}`;
-  };
-
-  // Get cell data for a specific day and hour
-  const getCellData = (day: string, hour: number) => {
-    const cellData = data.find(d => d.day === day && d.hour === hour);
-    return cellData || { hour, day, value: 0, conversions: 0, cost: 0 };
   };
 
   // Get aggregated data for 4-hour blocks
@@ -712,7 +701,6 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
     blocksWithConversions.sort((a, b) => b.costPerConversion - a.costPerConversion);
 
     // Step 4: Create Group 0 for zero conversions and divide rest into 4 quartiles
-    const totalSpend = allBlocks.reduce((sum, block) => sum + block.cost, 0);
     const blocksWithConversionsSpend = blocksWithConversions.reduce((sum, block) => sum + block.cost, 0);
     const quartileSpend = blocksWithConversionsSpend * 0.25; // 25% for each quartile
 

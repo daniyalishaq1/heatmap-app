@@ -64,12 +64,12 @@ export function HourlyPerformanceTrends({ data }: HourlyTrendsProps) {
   const hourlyDataWithCPA = hourlyData.filter(d => d.cpa !== null);
   const dailyDataWithCPA = dailyData.filter(d => d.cpa !== null);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{name: string; value: number | null; payload: {hourLabel?: string; dayShort?: string}; color: string}> }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
           <p className="font-semibold text-sm mb-1">{payload[0].payload.hourLabel || payload[0].payload.dayShort}</p>
-          {payload.map((entry: any, index: number) => {
+          {payload.map((entry, index: number) => {
             // Handle null CPA values (when there are no conversions)
             if (entry.name.includes('CPA') && (entry.value === null || entry.value === undefined)) {
               return (
@@ -80,7 +80,7 @@ export function HourlyPerformanceTrends({ data }: HourlyTrendsProps) {
             }
             return (
               <p key={index} className="text-xs" style={{ color: entry.color }}>
-                {entry.name}: {entry.name.includes('CPA') || entry.name.includes('Cost') ? `$${entry.value.toFixed(2)}` : entry.value.toFixed(2)}
+                {entry.name}: {entry.value !== null ? (entry.name.includes('CPA') || entry.name.includes('Cost') ? `$${entry.value.toFixed(2)}` : entry.value.toFixed(2)) : 'N/A'}
               </p>
             );
           })}

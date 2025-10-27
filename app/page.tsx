@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Heatmap } from '@/components/heatmap';
 import { HourlyPerformanceTrends } from '@/components/hourly-trends';
 import { Card, CardContent } from '@/components/ui/card';
