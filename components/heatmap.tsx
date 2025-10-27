@@ -36,7 +36,7 @@ interface CalendarViewProps {
     quintileSpend: number;
   };
   blockSize: '1hour' | '4hour';
-  blockGrouping: '4-8-12' | '11-3-7' | '10-2-6';
+  blockGrouping: '4-8-12' | '11-3-7' | '10-2-6' | '7-11-3';
   fourHourQuintileData?: Array<Array<{
     day: string;
     blockLabel: string;
@@ -52,7 +52,7 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
   const [selectedQuintiles, setSelectedQuintiles] = useState<Set<number>>(new Set());
 
   // Get the hour blocks based on the selected grouping
-  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6' | '7-11-3') => {
     switch (grouping) {
       case '4-8-12':
         return [4, 8, 12, 16, 20, 0]; // 4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am
@@ -60,6 +60,8 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
         return [11, 15, 19, 23, 3, 7]; // 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am
       case '10-2-6':
         return [10, 14, 18, 22, 2, 6]; // 10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am
+      case '7-11-3':
+        return [7, 11, 15, 19, 23, 3]; // 7am-11am, 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am
     }
   };
 
@@ -67,11 +69,11 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
 
   const getQuintileColor = (quintileIndex: number) => {
     const colors = [
-      '#7f1d1d', // Deep Red - Worst quintile
-      '#f87171', // Red - 2nd worst
-      '#ffffff', // White - Middle
-      '#60a5fa', // Blue - 2nd best
-      '#1e3a8a'  // Deep Blue - Best quintile
+      '#7f1d1d', // bg-red-900 - Group 0 (Zero Conversions)
+      '#f87171', // bg-red-400 - Group 1 (Worst Quartile)
+      '#fde047', // bg-yellow-300 - Group 2 (2nd Quartile)
+      '#4ade80', // bg-green-400 - Group 3 (3rd Quartile)
+      '#14532d'  // bg-green-900 - Group 4 (Best Quartile)
     ];
     return colors[quintileIndex] || '#ffffff';
   };
@@ -89,10 +91,11 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
   // Format time range for 4-hour blocks
   const formatBlockTime = (start: number, end: number) => {
     const formatHour = (h: number) => {
-      if (h === 0) return '12am';
-      if (h < 12) return `${h}am`;
-      if (h === 12) return '12pm';
-      return `${h - 12}pm`;
+      const hour = h % 24; // Handle wraparound
+      if (hour === 0) return '12am';
+      if (hour < 12) return `${hour}am`;
+      if (hour === 12) return '12pm';
+      return `${hour - 12}pm`;
     };
     return `${formatHour(start)}-${formatHour(end + 1)}`;
   };
@@ -184,13 +187,13 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
     setSelectedQuintiles(new Set());
   };
 
-  // Quintile filter options - colors match Quintile blocks
+  // Group filter options - colors match Group blocks
   const quintileFilters = [
-    { index: 0, label: 'Worst', color: '#7f1d1d' },
-    { index: 1, label: '2nd Worst', color: '#f87171' },
-    { index: 2, label: 'Middle', color: '#ffffff' },
-    { index: 3, label: '2nd Best', color: '#60a5fa' },
-    { index: 4, label: 'Best', color: '#1e3a8a' }
+    { index: 0, label: 'Group 0 (Zero Conv)', color: '#7f1d1d' },
+    { index: 1, label: 'Group 1 (Worst)', color: '#f87171' },
+    { index: 2, label: 'Group 2', color: '#fde047' },
+    { index: 3, label: 'Group 3', color: '#4ade80' },
+    { index: 4, label: 'Group 4 (Best)', color: '#14532d' }
   ];
 
   return (
@@ -305,28 +308,28 @@ function CalendarView({ data, quintileData, blockSize, blockGrouping, fourHourQu
       <div className="mt-4 flex items-center justify-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{ backgroundColor: '#7f1d1d' }} />
-          <span className="text-xs text-gray-600">Worst</span>
+          <span className="text-xs text-gray-600">Group 0 (Zero Conv)</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f87171' }} />
-          <span className="text-xs text-gray-600">2nd Worst</span>
+          <span className="text-xs text-gray-600">Group 1 (Worst)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: '#f3f4f6' }} />
-          <span className="text-xs text-gray-600">Middle</span>
+          <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: '#fde047' }} />
+          <span className="text-xs text-gray-600">Group 2</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{ backgroundColor: '#4ade80' }} />
-          <span className="text-xs text-gray-600">2nd Best</span>
+          <span className="text-xs text-gray-600">Group 3</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{ backgroundColor: '#14532d' }} />
-          <span className="text-xs text-gray-600">Best</span>
+          <span className="text-xs text-gray-600">Group 4 (Best)</span>
         </div>
       </div>
 
       <div className="mt-2 text-center text-xs text-gray-500">
-        Colors based on performance quintiles - hover over cells for details
+        Colors based on performance groups - Group 0: Zero conversions, Groups 1-4: Quartiles by CPA
       </div>
     </div>
   );
@@ -336,10 +339,10 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
   const [hoveredCell, setHoveredCell] = useState<{ day: string; hour: number; value: number; conversions?: number; cost?: number } | null>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [quintileBlockSize, setQuintileBlockSize] = useState<'1hour' | '4hour'>('1hour');
-  const [blockGrouping, setBlockGrouping] = useState<'4-8-12' | '11-3-7' | '10-2-6'>('4-8-12');
+  const [blockGrouping, setBlockGrouping] = useState<'4-8-12' | '11-3-7' | '10-2-6' | '7-11-3'>('4-8-12');
 
   // Get the hour blocks based on the selected grouping
-  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+  const getBlockStarts = (grouping: '4-8-12' | '11-3-7' | '10-2-6' | '7-11-3') => {
     switch (grouping) {
       case '4-8-12':
         return [4, 8, 12, 16, 20, 0]; // 4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am
@@ -347,11 +350,13 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
         return [11, 15, 19, 23, 3, 7]; // 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am
       case '10-2-6':
         return [10, 14, 18, 22, 2, 6]; // 10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am
+      case '7-11-3':
+        return [7, 11, 15, 19, 23, 3]; // 7am-11am, 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am
     }
   };
 
   // Check if an hour belongs to the current block grouping
-  const isHourInBlockGrouping = (hour: number, grouping: '4-8-12' | '11-3-7' | '10-2-6') => {
+  const isHourInBlockGrouping = (hour: number, grouping: '4-8-12' | '11-3-7' | '10-2-6' | '7-11-3') => {
     const blockStarts = getBlockStarts(grouping);
     for (const start of blockStarts) {
       const hours = [];
@@ -410,11 +415,11 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
   // These colors match the Tailwind classes used in Quintile blocks
   const getQuintileColor = (quintileIndex: number) => {
     const colors = [
-      '#7f1d1d', // Deep Red - Worst quintile
-      '#f87171', // Red - 2nd worst
-      '#ffffff', // White - Middle
-      '#60a5fa', // Blue - 2nd best
-      '#1e3a8a'  // Deep Blue - Best quintile
+      '#7f1d1d', // bg-red-900 - Group 0 (Zero Conversions)
+      '#f87171', // bg-red-400 - Group 1 (Worst Quartile)
+      '#fde047', // bg-yellow-300 - Group 2 (2nd Quartile)
+      '#4ade80', // bg-green-400 - Group 3 (3rd Quartile)
+      '#14532d'  // bg-green-900 - Group 4 (Best Quartile)
     ];
     return colors[quintileIndex] || '#ffffff';
   };
@@ -623,13 +628,31 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
   const merge4HourBlocks = (quintileData: ReturnType<typeof getQuintileBreakdown>) => {
     if (!quintileData) return null;
 
+    // Get block starts based on current grouping
+    const blockStarts = getBlockStarts(blockGrouping);
+
+    // Helper function to find which block an hour belongs to
+    const getBlockStartForHour = (hour: number): number | null => {
+      for (const start of blockStarts) {
+        const hours = [];
+        for (let i = 0; i < 4; i++) {
+          hours.push((start + i) % 24);
+        }
+        if (hours.includes(hour)) {
+          return start;
+        }
+      }
+      return null;
+    };
+
     // Helper function to format time range
     const formatBlockTime = (start: number, end: number) => {
       const formatHour = (h: number) => {
-        if (h === 0) return '12am';
-        if (h < 12) return `${h}am`;
-        if (h === 12) return '12pm';
-        return `${h - 12}pm`;
+        const hour = h % 24; // Handle wraparound
+        if (hour === 0) return '12am';
+        if (hour < 12) return `${hour}am`;
+        if (hour === 12) return '12pm';
+        return `${hour - 12}pm`;
       };
       return `${formatHour(start)}-${formatHour(end + 1)}`;
     };
@@ -647,8 +670,10 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
 
     quintileData.quintiles.forEach(quintile => {
       quintile.forEach(({ day, hour, cost, conversions }) => {
-        const blockStart = Math.floor(hour / 4) * 4;
-        const blockEnd = blockStart + 3;
+        const blockStart = getBlockStartForHour(hour);
+        if (blockStart === null) return; // Skip hours not in current grouping
+
+        const blockEnd = blockStart + 3; // Don't use modulo here - formatBlockTime handles it
         const blockKey = `${day}-${blockStart}`;
 
         if (!allBlocksMap.has(blockKey)) {
@@ -676,37 +701,39 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
       block.costPerConversion = block.conversions > 0 ? block.cost / block.conversions : Infinity;
     });
 
-    // Sort blocks by performance: worst (highest CPA or zero conversions) to best (lowest CPA)
-    allBlocks.sort((a, b) => {
-      // Zero conversions first (worst)
-      if (a.conversions === 0 && b.conversions > 0) return -1;
-      if (a.conversions > 0 && b.conversions === 0) return 1;
+    // Step 3: Separate zero conversion blocks and blocks with conversions
+    const zeroConversionBlocks = allBlocks.filter(block => block.conversions === 0);
+    const blocksWithConversions = allBlocks.filter(block => block.conversions > 0);
 
-      // Both zero conversions: sort by cost (higher cost = worse)
-      if (a.conversions === 0 && b.conversions === 0) {
-        return b.cost - a.cost;
-      }
+    // Sort zero conversion blocks by cost (higher cost first)
+    zeroConversionBlocks.sort((a, b) => b.cost - a.cost);
 
-      // Both have conversions: sort by CPA (higher CPA = worse)
-      return b.costPerConversion - a.costPerConversion;
-    });
+    // Sort blocks with conversions by CPA (higher CPA = worse)
+    blocksWithConversions.sort((a, b) => b.costPerConversion - a.costPerConversion);
 
-    // Step 3: Divide blocks into quintiles based on cumulative spend
+    // Step 4: Create Group 0 for zero conversions and divide rest into 4 quartiles
     const totalSpend = allBlocks.reduce((sum, block) => sum + block.cost, 0);
-    const quintileSpend = totalSpend * 0.2;
+    const blocksWithConversionsSpend = blocksWithConversions.reduce((sum, block) => sum + block.cost, 0);
+    const quartileSpend = blocksWithConversionsSpend * 0.25; // 25% for each quartile
 
+    // Array of 5 groups: Group 0 (zero conversions) + Groups 1-4 (quartiles)
     const quintileBlocks: typeof allBlocks[] = [[], [], [], [], []];
-    let currentQuintile = 0;
-    let currentQuintileSpend = 0;
 
-    for (const block of allBlocks) {
-      if (currentQuintile < 4 && currentQuintileSpend + block.cost > quintileSpend) {
-        currentQuintile++;
-        currentQuintileSpend = 0;
+    // Group 0: All zero conversion blocks
+    quintileBlocks[0] = zeroConversionBlocks;
+
+    // Groups 1-4: Divide blocks with conversions into quartiles by spend
+    let currentQuartile = 1; // Start at group 1
+    let currentQuartileSpend = 0;
+
+    for (const block of blocksWithConversions) {
+      if (currentQuartile < 4 && currentQuartileSpend + block.cost > quartileSpend) {
+        currentQuartile++;
+        currentQuartileSpend = 0;
       }
 
-      quintileBlocks[currentQuintile].push(block);
-      currentQuintileSpend += block.cost;
+      quintileBlocks[currentQuartile].push(block);
+      currentQuartileSpend += block.cost;
     }
 
     // Step 4: Sort blocks within each quintile by day and time
@@ -1023,11 +1050,22 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
                     >
                       10-2-6
                     </button>
+                    <button
+                      onClick={() => setBlockGrouping('7-11-3')}
+                      className={`px-3 py-1 text-xs rounded transition-colors ${
+                        blockGrouping === '7-11-3'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      7-11-3
+                    </button>
                   </div>
                   <span className="text-xs text-gray-500">
                     {blockGrouping === '4-8-12' && '(4am-8am, 8am-12pm, 12pm-4pm, 4pm-8pm, 8pm-12am, 12am-4am)'}
                     {blockGrouping === '11-3-7' && '(11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am, 7am-11am)'}
                     {blockGrouping === '10-2-6' && '(10am-2pm, 2pm-6pm, 6pm-10pm, 10pm-2am, 2am-6am, 6am-10am)'}
+                    {blockGrouping === '7-11-3' && '(7am-11am, 11am-3pm, 3pm-7pm, 7pm-11pm, 11pm-3am, 3am-7am)'}
                   </span>
                 </div>
               )}
@@ -1083,12 +1121,17 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
                   const quintileSpend = quintileBlocks.reduce((sum, b) => sum + b.cost, 0);
                   const quintileConversions = quintileBlocks.reduce((sum, b) => sum + b.conversions, 0);
                   const quintileCPA = quintileConversions > 0 ? quintileSpend / quintileConversions : null;
+
+                  // Calculate total spend for percentage (only for Group 0)
+                  const totalSpend = fourHourQuintileData.flat().reduce((sum, b) => sum + b.cost, 0);
+                  const spendPercentage = (quintileSpend / totalSpend) * 100;
+
                   const colors = [
-                    { bg: 'bg-red-900', border: 'border-red-950', text: 'text-white', label: 'Worst Quintile' },
-                    { bg: 'bg-red-400', border: 'border-red-500', text: 'text-white', label: '2nd Worst Quintile' },
-                    { bg: 'bg-white', border: 'border-gray-300', text: 'text-gray-900', label: 'Middle Quintile' },
-                    { bg: 'bg-blue-400', border: 'border-blue-500', text: 'text-white', label: '2nd Best Quintile' },
-                    { bg: 'bg-blue-900', border: 'border-blue-950', text: 'text-white', label: 'Best Quintile' }
+                    { bg: 'bg-red-900', border: 'border-red-950', text: 'text-white', label: 'Group 0 (Zero Conversions)' },
+                    { bg: 'bg-red-400', border: 'border-red-500', text: 'text-white', label: 'Group 1 (Worst Quartile)' },
+                    { bg: 'bg-yellow-300', border: 'border-yellow-400', text: 'text-gray-900', label: 'Group 2 (2nd Quartile)' },
+                    { bg: 'bg-green-400', border: 'border-green-500', text: 'text-white', label: 'Group 3 (3rd Quartile)' },
+                    { bg: 'bg-green-900', border: 'border-green-950', text: 'text-white', label: 'Group 4 (Best Quartile)' }
                   ];
                   const colorScheme = colors[index];
 
@@ -1097,8 +1140,14 @@ export function Heatmap({ data, metricType = 'conversions', hideZeroList = false
                       <div className="mb-2">
                         <div className="text-base font-bold text-gray-900 mb-1">{colorScheme.label}</div>
                         <div className="text-sm text-gray-900">
-                          Total Cost: ${quintileSpend.toFixed(2)} | Total Hours: {quintileBlocks.length} blocks | Conversions: {quintileConversions.toFixed(2)}
-                          {quintileCPA !== null && <span className="font-extrabold text-lg ml-2">| CPA: ${quintileCPA.toFixed(2)}</span>}
+                          Total Cost: ${quintileSpend.toFixed(2)} | Total Blocks: {quintileBlocks.length} | Conversions: {quintileConversions.toFixed(2)}
+                          {index === 0 ? (
+                            // Group 0: Show spend percentage as prominent
+                            <span className="font-extrabold text-lg ml-2">| Spend: {spendPercentage.toFixed(1)}%</span>
+                          ) : (
+                            // Groups 1-4: Show CPA as prominent
+                            quintileCPA !== null && <span className="font-extrabold text-lg ml-2">| CPA: ${quintileCPA.toFixed(2)}</span>
+                          )}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
